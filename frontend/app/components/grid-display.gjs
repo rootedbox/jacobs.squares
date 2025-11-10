@@ -59,9 +59,6 @@ export default class GridDisplay extends Component {
       const grid = this.args.grid;
       if (!grid) {
         this._isRendering = false;
-        if (this.args.onRenderComplete) {
-          this.args.onRenderComplete();
-        }
         return;
       }
       
@@ -100,9 +97,6 @@ export default class GridDisplay extends Component {
         } else {
           this.cachedDataUrl = canvas.toDataURL();
           this._isRendering = false;
-          if (this.args.onRenderComplete) {
-            this.args.onRenderComplete();
-          }
         }
       };
       
@@ -110,9 +104,6 @@ export default class GridDisplay extends Component {
     } catch (e) {
       console.error('Canvas rendering error:', e);
       this._isRendering = false;
-      if (this.args.onRenderComplete) {
-        this.args.onRenderComplete();
-      }
     }
   }
 

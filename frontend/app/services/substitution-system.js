@@ -8,6 +8,8 @@ export default class SubstitutionSystemService extends Service {
   flatExpansions = new Uint8Array(16 * 16);
   _worker = null;
   _progressCallback = null;
+  _resolveGenerate = null;
+  _isGenerating = false;
 
   constructor() {
     super(...arguments);
@@ -22,12 +24,27 @@ export default class SubstitutionSystemService extends Service {
       
       if (type === 'progress' && this._progressCallback) {
         this._progressCallback(progress);
-      } else if (type === 'complete' && this._resolveGenerate) {
-        this._resolveGenerate(grid);
-        this._resolveGenerate = null;
+      } else if (type === 'complete') {
+        this._isGenerating = false;
+        if (this._resolveGenerate) {
+          this._resolveGenerate(grid);
+          this._resolveGenerate = null;
+        }
         if (this._progressCallback) {
           this._progressCallback(1);
         }
+      }
+    };
+    
+    this._worker.onerror = (error) => {
+      console.error('Web Worker error:', error);
+      this._isGenerating = false;
+      if (this._progressCallback) {
+        this._progressCallback(0);
+      }
+      if (this._resolveGenerate) {
+        this._resolveGenerate(null);
+        this._resolveGenerate = null;
       }
     };
   }
@@ -37,7 +54,15 @@ export default class SubstitutionSystemService extends Service {
   }
 
   initializeDefaultRules() {
+    const defaultHex = 'E6700000003F0004CDF6F00D000EF7B32032FC04C0B00000';
+    
+    const bitString = defaultHex.split('').map(h => 
+      parseInt(h, 16).toString(2).padStart(4, '0')
+    ).join('');
+    
     const rules = {};
+    let bitIndex = 0;
+    
     for (let i = 0; i < 16; i++) {
       const corners = [
         (i >> 3) & 1,
@@ -46,11 +71,17 @@ export default class SubstitutionSystemService extends Service {
         i & 1
       ];
       
+      const inner = [];
+      for (let j = 0; j < 12; j++) {
+        inner.push(bitString[bitIndex++] === '1' ? 1 : 0);
+      }
+      
       rules[i] = {
         corners: corners,
-        inner: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        inner: inner
       };
     }
+    
     return rules;
   }
 
@@ -105,7 +136,20 @@ export default class SubstitutionSystemService extends Service {
   }
 
   generate(iterations = 1) {
+    if (this._isGenerating && this._worker) {
+      this._worker.terminate();
+      
+      if (this._resolveGenerate) {
+        this._resolveGenerate(null);
+        this._resolveGenerate = null;
+      }
+      
+      this._isGenerating = false;
+      this.initWorker();
+    }
+    
     return new Promise((resolve) => {
+      this._isGenerating = true;
       this._resolveGenerate = resolve;
       
       if (this._progressCallback) {
